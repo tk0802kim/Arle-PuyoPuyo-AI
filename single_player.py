@@ -4,21 +4,28 @@ import network_relu as nt
 import DQL_functions as qf
 import copy
 import pandas as pd
+import pickle
 
 eta = 0.01 #learning rate
-eps = 0.01 # random action rate
+eps = 0.10 # random action rate
 gamma = 0.9 #future reward discount
 batch_size = 50 #minibatch size for training
 
 
 #create game and agent
 game = puyo.Puyo()
-agent = nt.Network([461,50,50,22])
+infilename = []
+if infilename !=[]:
+    infile=open('agents\\{}'.format(infilename),'rb')
+    agent = pickle.load(infile)
+else:
+    agent = nt.Network([461,50,50,22])
 blank_gs=copy.deepcopy(qf.gamestate(game))
 
 #run random choice to create memory
 N = 10 #total number of games
 movemax = 50; #maximum number of moves
+nepoch = 30 #number of epochs
 
 #initialize memory lane
 memory_lane = np.ndarray(N*movemax,dtype=np.object)
@@ -54,9 +61,10 @@ for i in range(len(memory_lane)):
 scorelist = []
 totalmovelist = []
 
+
 print('Start training')
 moveref = np.delete(np.arange(24),[1,23])
-for epoch in range(1):
+for epoch in range(nepoch):
     for i in range(len(memory_lane)):
          #load into game state
          game.state = memory_lane[i].cur_gs.state
@@ -112,7 +120,7 @@ for epoch in range(1):
 #         agent.train(batch,target,eta)
          loss = agent.train(batch,target,eta)
          
-         if (10*i/len(memory_lane))%1==0:
+         if (100*i/len(memory_lane))%1==0:
              print(' ')
              print('Epoch {}, {}% though memory lane'.format(epoch,100*i/len(memory_lane)))
              print('Loss: {}'.format(loss))
@@ -121,7 +129,7 @@ for epoch in range(1):
     bestscore=0
     totalmoves=0
     for ii in range(10):
-        
+        movecount = 0
         game.newgame()
         for iii in range(500):
             
@@ -136,11 +144,16 @@ for epoch in range(1):
             
             #place and run the game     
             game.place(bestmove)
-            game.chain()            
+            game.chain()      
+            
+            #if valid, +1 to movecount
+            if game.valid:
+                movecount+=1
+            
             #check if gameover
             if game.state[11,2]!=0:
                 bestscore= max(bestscore,game.totalscore)
-                totalmoves = max(totalmoves,iii+1)
+                totalmoves = max(totalmoves,movecount)
                 break
         else:
             bestscore= max(bestscore,game.totalscore)
@@ -151,3 +164,6 @@ for epoch in range(1):
     
     scorelist.append(bestscore)
     totalmovelist.append(totalmoves)
+    outfile = open('agents\\agent{}'.format(1),'wb')
+    pickle.dump(agent,outfile)
+    outfile.close()
