@@ -152,12 +152,10 @@ for epoch in range(nepoch):
             
             #check if gameover
             if game.state[11,2]!=0:
-                bestscore= max(bestscore,game.totalscore)
-                totalmoves = max(totalmoves,movecount)
+                
                 break
-        else:
-            bestscore= max(bestscore,game.totalscore)
-            totalmoves = 500
+        bestscore= max(bestscore,game.totalscore)
+        totalmoves = max(totalmoves,movecount)
     
     print('Epoch {} best score: {}'.format(epoch, bestscore))
     print('Epoch {} max moves: {}'.format(epoch, totalmoves))
