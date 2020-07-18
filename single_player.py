@@ -1,0 +1,153 @@
+import puyo
+import numpy as np
+import network_relu as nt
+import DQL_functions as qf
+import copy
+import pandas as pd
+
+eta = 0.01 #learning rate
+eps = 0.01 # random action rate
+gamma = 0.9 #future reward discount
+batch_size = 50 #minibatch size for training
+
+
+#create game and agent
+game = puyo.Puyo()
+agent = nt.Network([461,50,50,22])
+blank_gs=copy.deepcopy(qf.gamestate(game))
+
+#run random choice to create memory
+N = 10 #total number of games
+movemax = 50; #maximum number of moves
+
+#initialize memory lane
+memory_lane = np.ndarray(N*movemax,dtype=np.object)
+for i in range(len(memory_lane)):
+    memory_lane[i] = qf.memory(blank_gs,0,0,blank_gs)
+    
+#populate with random move games
+for i in range(len(memory_lane)):
+
+    #update prevstate
+    memory_lane[i].cur_gs = copy.deepcopy(qf.gamestate(game))
+    
+    #random place
+    game.place()
+    game.chain()
+    memory_lane[i].action = game.lastaction
+    #if the last move was valid, reward is score. If not, -100
+    if game.valid:
+        memory_lane[i].reward = qf.rewardmap(game.score)
+    else:
+        memory_lane[i].reward = -10
+    memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
+    
+    #if game over, reward = -10000
+    if game.state[11,2]!=0:
+        memory_lane[i].reward = -100
+        game.newgame()
+    elif game.time == movemax-1:
+        game.newgame()
+
+# training
+        
+scorelist = []
+totalmovelist = []
+
+print('Start training')
+moveref = np.delete(np.arange(24),[1,23])
+for epoch in range(1):
+    for i in range(len(memory_lane)):
+         #load into game state
+         game.state = memory_lane[i].cur_gs.state
+         game.current_block = memory_lane[i].cur_gs.current_block
+         game.next_block = memory_lane[i].cur_gs.next_block
+         game.score = 0
+        
+         #with chance of eps, take random action
+         if np.random.rand(1)<eps:
+             game.place()             
+         else:
+             #create agent_viewstate from the snapshot in memory
+             viewstate = qf.agent_view(memory_lane[i].cur_gs)
+             #move forward in Q
+             Qval = agent.forward(viewstate)
+             #choose the move with highest Q
+             Qlist=pd.DataFrame(list(zip(moveref,Qval)),columns=['move','Q'])
+             Qlist.sort_values(by='Q',ascending=False,inplace=True)
+             game.place(Qlist['move'].iloc[0])
+             
+         game.chain()
+         memory_lane[i].action = game.lastaction
+         memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
+ 
+        #if the last move was valid, reward is score. If not, -100
+         if game.valid:
+             memory_lane[i].reward = qf.rewardmap(game.score)
+         else:
+             memory_lane[i].reward = -10    
+         #if game over, reward = -10000
+         if game.state[11,2]!=0:
+             memory_lane[i].reward = -100
+             
+         #gradient descent   
+         #sample random minibatch of snapshots in memory
+         batch = np.random.choice(memory_lane,batch_size,replace=False)
+         #calculate target for each
+         target = np.zeros(batch_size)
+         for ii in range(batch_size):
+             if batch[ii].next_gs.state[11,2]!=0:
+                 target[ii] = batch[ii].reward
+             else:
+                 #calculate the next y as r+gamma*maxQ of next state
+                 viewstate = qf.agent_view(batch[ii].next_gs)
+                 #move forward in Q
+                 Qval = agent.forward(viewstate)
+                 #choose the move with highest Q
+                 Qlist=pd.DataFrame(list(zip(moveref,Qval)),columns=['move','Q'])
+                 Qlist.sort_values(by='Q',ascending=False,inplace=True)
+                 target[ii] = batch[ii].reward+gamma*Qlist['Q'].iloc[0]
+         
+         #feed it for gradient descent   
+#         agent.train(batch,target,eta)
+         loss = agent.train(batch,target,eta)
+         
+         if (10*i/len(memory_lane))%1==0:
+             print(' ')
+             print('Epoch {}, {}% though memory lane'.format(epoch,100*i/len(memory_lane)))
+             print('Loss: {}'.format(loss))
+         
+    #at the end of each epoch, get the average score and moves before death
+    bestscore=0
+    totalmoves=0
+    for ii in range(10):
+        
+        game.newgame()
+        for iii in range(500):
+            
+            #calculate new action
+            viewstate = qf.agent_view(qf.gamestate(game))
+            #move forward in Q
+            Qval = agent.forward(viewstate)
+            #choose the move with highest Q
+            Qlist=pd.DataFrame(list(zip(moveref,Qval)),columns=['move','Q'])
+            Qlist.sort_values(by='Q',ascending=False,inplace=True)
+            bestmove = Qlist['move'].iloc[0]
+            
+            #place and run the game     
+            game.place(bestmove)
+            game.chain()            
+            #check if gameover
+            if game.state[11,2]!=0:
+                bestscore= max(bestscore,game.totalscore)
+                totalmoves = max(totalmoves,iii+1)
+                break
+        else:
+            bestscore= max(bestscore,game.totalscore)
+            totalmoves = 500
+    
+    print('Epoch {} best score: {}'.format(epoch, bestscore))
+    print('Epoch {} max moves: {}'.format(epoch, totalmoves))
+    
+    scorelist.append(bestscore)
+    totalmovelist.append(totalmoves)
