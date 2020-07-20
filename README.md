@@ -18,3 +18,10 @@ DQL.py contains classes and functions to be used in deep Q learning.(https://www
 
 In particular:
     memory class: contains state, action taken, reward observed, and the resulting state. This will be collected in an array called memeory_lane in the main function
+
+
+
+TODO:
+Make it so the initial training set is randomly generated state, not a blank state that evolves in time.
+Paralellize
+Investigate memory overflow
