@@ -23,8 +23,8 @@ else:
 blank_gs=copy.deepcopy(qf.gamestate(game))
 
 #run random choice to create memory
-N = 100 #total number of games
-movemax = 5; #maximum number of moves
+N = 10000 #total number of games
+movemax = 500; #maximum number of moves
 nepoch = 30 #number of epochs
 
 #initialize memory lane
