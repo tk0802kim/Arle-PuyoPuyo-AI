@@ -21,7 +21,10 @@ In particular:
 
 
 
-TODO:
-Make it so the initial training set is randomly generated state, not a blank state that evolves in time.
+ToDo:
 Paralellize
 Investigate memory overflow
+
+
+Done:
+Make it so the initial training set is randomly generated state, not a blank state that evolves in time.
