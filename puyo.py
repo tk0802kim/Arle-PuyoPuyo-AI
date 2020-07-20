@@ -44,7 +44,7 @@ class Puyo:
         rotation = move%4
         if rotation == 0: #if vertical, check if there are two spaces in the column
             if np.array_equal(self.state[11:13,position],[0,0]):
-                self.state[11:13,position] = np.flip(self.current_block)
+                self.state[11:13,position] = np.flip(self.current_block,0)
                 self.valid = 1
             else:
                 self.valid = 0
