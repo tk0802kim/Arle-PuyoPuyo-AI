@@ -23,8 +23,8 @@ else:
 blank_gs=copy.deepcopy(qf.gamestate(game))
 
 #run random choice to create memory
-N = 10000 #total number of games
-movemax = 500; #maximum number of moves
+N = 10 #total number of games
+movemax = 50; #maximum number of moves
 nepoch = 30 #number of epochs
 
 #initialize memory lane
@@ -35,13 +35,7 @@ for i in range(len(memory_lane)):
 #populate with random move games
 for i in range(len(memory_lane)):
 
-    #create new random state
-    height = np.random.randint(2,9)
-    game.state = np.concatenate((np.zeros(13-height,6),np.random.randint(0,6,size=(height,6))))
-    game.chain()
-    game.reset()
-    
-    #populate memorylane
+    #update prevstate
     memory_lane[i].cur_gs = copy.deepcopy(qf.gamestate(game))
     
     #random place
