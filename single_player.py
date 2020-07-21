@@ -5,6 +5,7 @@ import DQL_functions as qf
 import copy
 import pandas as pd
 import pickle
+import platform
 
 eta = 0.01 #learning rate
 eps = 0.10 # random action rate
@@ -14,17 +15,22 @@ batch_size = 50 #minibatch size for training
 
 #create game and agent
 game = puyo.Puyo()
-infilename = []
-if infilename !=[]:
-    infile=open('agents\\{}'.format(infilename),'rb')
+##load previous agent
+infilename = '_0'
+if infilename !='':
+    if platform.system() == 'Windows':
+        infile=open('agents\\agent{}'.format(infilename),'rb')
+    elif platform.system() == 'Linux':
+        infile=open('agents/agent{}'.format(infilename),'rb')
     agent = pickle.load(infile)
+    infile.close()    
 else:
     agent = nt.Network([461,50,50,22])
 blank_gs=copy.deepcopy(qf.gamestate(game))
 
 #run random choice to create memory
-N = 10000 #total number of games
-movemax = 500; #maximum number of moves
+N = 100 #total number of games
+movemax = 100; #maximum number of moves
 nepoch = 30 #number of epochs
 
 #initialize memory lane
@@ -157,6 +163,8 @@ for epoch in range(nepoch):
             if game.state[11,2]!=0:
                 
                 break
+        print(game.state)
+        print(' ')
         bestscore= max(bestscore,game.totalscore)
         totalmoves = max(totalmoves,movecount)
     
@@ -165,6 +173,9 @@ for epoch in range(nepoch):
     
     scorelist.append(bestscore)
     totalmovelist.append(totalmoves)
-    outfile = open('agents\\agent{}'.format(1),'wb')
+    if platform.system() == 'Windows':
+        outfile = open('agents\\agent{}_{}'.format(infilename,nepoch),'wb')
+    elif platform.system() == 'Linux':
+        outfile = open('agents/agent{}_{}'.format(infilename,nepoch),'wb')
     pickle.dump(agent,outfile)
     outfile.close()
