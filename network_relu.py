@@ -5,6 +5,8 @@
 import numpy as np
 import math
 import DQL_functions as qf
+import warnings
+np.seterr(all='warn')
 
 class Network:
     def __init__(self,size):
@@ -66,7 +68,12 @@ class Network:
                 self.delta[-1][iii] = 0
             #self.delta[-1] = (guess-y)*sigprime(self.z[-1])
             self.delta[-1][actioni(data[ii].action)] = (guess[actioni(data[ii].action)]-y)   
-            loss = loss+((guess[actioni(data[ii].action)]-y)**2)/(batch_size)
+            try:
+                loss = loss+((guess[actioni(data[ii].action)]-y)**2)/(batch_size)
+            except Warning:
+                print('loss: {}, dtype: {}'.format(loss,type(loss)))
+                print('guess: {}, dtype: {}'.format(guess,type(guess)))
+                print('y: {}, dtype: {}'.format(y,type(y)))
             #back propagate delta's
             for iii in range(self.nlayer-2,-1,-1):
                 self.delta[iii]=np.multiply(self.weights[iii][:,:-1].T@self.delta[iii+1],reluprime(self.z[iii]))

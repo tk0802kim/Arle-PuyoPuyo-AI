@@ -75,7 +75,7 @@ class Puyo:
     def drop(self):
         for i in range(6):
             #delete all 0's, then add in the rest of zeros
-            foo = np.delete(self.state[:,i],self.state[:,i]==0)
+            foo = np.delete(self.state[:,i],1*(self.state[:,i]==0))
             self.state[:,i] = np.append(foo,np.zeros(13-len(foo),dtype=np.int32))
             
     

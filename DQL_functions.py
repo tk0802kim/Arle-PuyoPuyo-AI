@@ -46,4 +46,4 @@ class memory:
         
 #sets the reward map    
 def rewardmap(score):
-    return np.log(score+1)
+    return score
