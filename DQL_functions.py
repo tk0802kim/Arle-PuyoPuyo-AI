@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 #game state includes: state, current block, next block.
 class gamestate:
