@@ -16,7 +16,7 @@ batch_size = 50 #minibatch size for training
 #create game and agent
 game = puyo.Puyo()
 ##load previous agent
-infilename = '_0'
+infilename = ''
 if infilename !='':
     if platform.system() == 'Windows':
         infile=open('agents\\agent{}'.format(infilename),'rb')
