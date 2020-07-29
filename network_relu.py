@@ -76,7 +76,12 @@ class Network:
                 print('y: {}, dtype: {}'.format(y,type(y)))
             #back propagate delta's
             for iii in range(self.nlayer-2,-1,-1):
-                self.delta[iii]=np.multiply(self.weights[iii][:,:-1].T@self.delta[iii+1],reluprime(self.z[iii]))
+                try:
+                    self.delta[iii]=np.multiply(self.weights[iii][:,:-1].T@self.delta[iii+1],reluprime(self.z[iii]))
+                except:
+                    # f = open("errorlog.txt", "a")
+                    # f.write(self.weights.tostring())
+                    # f.close()
             #update weights    
             for iii in range(0,self.nlayer-1):
                 dcdw[iii] = dcdw[iii]-(eta/batch_size)*(self.delta[iii+1][np.newaxis].T@self.nodes[iii][np.newaxis])
