@@ -14,7 +14,7 @@ class gamestate:
 #total length = 461(29+72*6)
 #indexs from topmost row with a puyo 
 def agent_view(gamestate):
-    viewstate = np.zeros(461,dtype=np.int)
+    viewstate = np.zeros(462,dtype=np.int)
     cur_block_i = block_ind(gamestate.current_block)
     next_block_i = block_ind(gamestate.next_block)
     viewstate[cur_block_i] = 1
@@ -24,8 +24,11 @@ def agent_view(gamestate):
                 topstate = np.flip(gamestate.state[0:i+1,:],0).flatten()
                 toplen=len(topstate);
                 for ii in range(6):
-                    for slot in topstate:
-                        viewstate[30*i*72:29*i*72+toplen] = (slot==ii)*1
+                    # for slot in topstate:
+                    try:
+                        viewstate[30+ii*72:30+ii*72+toplen] = (topstate==ii)*1
+                    except:
+                        print('meh')                            
                 return viewstate      
     return viewstate
     
