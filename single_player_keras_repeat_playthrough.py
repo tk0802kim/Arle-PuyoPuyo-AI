@@ -1,6 +1,6 @@
 import puyo
 import numpy as np
-from tensorflow import keras
+import keras
 from keras import layers
 import DQL_functions as qf
 import copy
