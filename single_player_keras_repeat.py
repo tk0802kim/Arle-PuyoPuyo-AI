@@ -16,6 +16,12 @@ blank_memeory = True #decides whether memory lane should be filled with blanks
 
 #create game and agent
 game = puyo.Puyo()
+##load previous agent
+infilename = '_2_0'
+
+
+
+
 agent = keras.Sequential(
     [
         #keras.Input(shape=(462,)),
@@ -26,8 +32,6 @@ agent = keras.Sequential(
 )
 agent.compile(loss='mean_squared_error', optimizer='adam')
 
-##load previous agent
-infilename = ''
 if infilename !='':
     if platform.system() == 'Windows':
         agent.load_weights('agents\\agent{}'.format(infilename))
@@ -53,6 +57,7 @@ totalmovelist = []
 
 print('Start training')
 moveref = np.delete(np.arange(24),[1,23])
+movelog = np.zeros((nepoch,len(memory_lane)),dtype=np.int)
 
 for epoch in range(nepoch):
     
@@ -84,7 +89,7 @@ for epoch in range(nepoch):
             memory_lane[i].reward = -100
     
     
-    
+
     for i in range(len(memory_lane)):
         #load into game state
         game.state = memory_lane[i].cur_gs.state
@@ -106,7 +111,8 @@ for epoch in range(nepoch):
             game.place(Qlist['move'].iloc[0])
             
         game.chain()
-        memory_lane[i].action = game.lastaction
+        memory_lane[i].action = copy.deepcopy(game.lastaction)
+        movelog[epoch,i] = copy.deepcopy(game.lastaction)
         memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
 
        #if the last move was valid, reward is score. If not, negative score

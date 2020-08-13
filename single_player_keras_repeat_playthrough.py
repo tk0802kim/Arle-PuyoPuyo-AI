@@ -6,15 +6,22 @@ import DQL_functions as qf
 import copy
 import pandas as pd
 import platform
+from tqdm import tqdm
 
 eta = 0.01 #learning rate
-eps = 0.10 # random action rate
+eps = 0.30 # random action rate
 gamma = 0.95 #future reward discount
 batch_size = 50 #minibatch size for training
 blank_memeory = True #decides whether memory lane should be filled with blanks
 
 #create game and agent
 game = puyo.Puyo()
+##load previous agent
+infilename = '_2'
+
+
+
+
 agent = keras.Sequential(
     [
         #keras.Input(shape=(462,)),
@@ -25,8 +32,6 @@ agent = keras.Sequential(
 )
 agent.compile(loss='mean_squared_error', optimizer='adam')
 
-##load previous agent
-infilename = ''
 if infilename !='':
     if platform.system() == 'Windows':
         agent.load_weights('agents\\agent{}'.format(infilename))
@@ -44,33 +49,6 @@ memory_lane = np.ndarray(N*movemax,dtype=np.object)
 for i in range(len(memory_lane)):
     memory_lane[i] = qf.memory(blank_gs,0,0,blank_gs)
     
-#populate with random move games
-for i in range(len(memory_lane)):
-
-    #create new random state
-    height = np.random.randint(7,12)
-    game.state = np.concatenate((np.zeros([13-height,6]),np.random.randint(0,6,size=(height,6))))
-    game.chain()
-    game.reset()
-    
-    #populate memorylane
-    memory_lane[i].cur_gs = copy.deepcopy(qf.gamestate(game))
-    
-    #random place
-    game.place()
-    game.chain()
-    memory_lane[i].action = game.lastaction
-    #if the last move was valid, reward is score. If not, -100
-    if game.valid:
-        memory_lane[i].reward = qf.rewardmap(game.score)
-    else:
-        memory_lane[i].reward = -10000
-    memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
-    
-    #if game over, reward = -10000
-    if game.state[11,2]!=0:
-        memory_lane[i].reward = -100
-
 # training
         
 scorelist = []
@@ -79,8 +57,39 @@ totalmovelist = []
 
 print('Start training')
 moveref = np.delete(np.arange(24),[1,23])
+movelog = np.zeros((nepoch,len(memory_lane)),dtype=np.int)
 
 for epoch in range(nepoch):
+    
+    #populate with random move games
+    game.newgame()
+    for i in tqdm(range(len(memory_lane))):
+        
+        #populate memorylane
+        memory_lane[i].cur_gs = copy.deepcopy(qf.gamestate(game))
+        
+        #random place
+        game.place()
+        game.chain()
+        memory_lane[i].action = game.lastaction
+        
+        #if the last move was valid, reward is score. If not, -100
+        if game.valid:
+            memory_lane[i].reward = qf.rewardmap(game.score)
+            memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
+        else:
+            # memory_lane[i].reward = -5000
+            game.state[11,2] = 1;
+            memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
+            # game.newgame()
+
+        #if game over, reward = -10000
+        if game.state[11,2]!=0:
+            memory_lane[i].reward = -5000
+            game.newgame()
+    
+    
+
     for i in range(len(memory_lane)):
         #load into game state
         game.state = memory_lane[i].cur_gs.state
@@ -97,12 +106,13 @@ for epoch in range(nepoch):
             #move forward in Q
             Qval = agent(viewstate,training=False)
             #choose the move with highest Q
-            Qlist=pd.DataFrame(list(zip(moveref,Qval)),columns=['move','Q'])
+            Qlist=pd.DataFrame({'move':moveref,'Q':Qval[0]})
             Qlist.sort_values(by='Q',ascending=False,inplace=True)
             game.place(Qlist['move'].iloc[0])
             
         game.chain()
-        memory_lane[i].action = game.lastaction
+        memory_lane[i].action = copy.deepcopy(game.lastaction)
+        movelog[epoch,i] = copy.deepcopy(game.lastaction)
         memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
 
        #if the last move was valid, reward is score. If not, negative score
@@ -159,7 +169,7 @@ for epoch in range(nepoch):
             #move forward in Q
             Qval = agent(viewstate).numpy()
             #choose the move with highest Q
-            Qlist=pd.DataFrame(list(zip(moveref,Qval)),columns=['move','Q'])
+            Qlist=pd.DataFrame({'move':moveref,'Q':Qval[0]})
             Qlist.sort_values(by='Q',ascending=False,inplace=True)
             bestmove = Qlist['move'].iloc[0]
             
@@ -186,6 +196,6 @@ for epoch in range(nepoch):
     scorelist.append(bestscore)
     totalmovelist.append(totalmoves)
     if platform.system() == 'Windows':
-        agent.save_weights('agents\\agent{}_{}'.format(infilename,nepoch))
+        agent.save_weights('agents\\agent{}_{}'.format(infilename,epoch))
     elif platform.system() == 'Linux':       
-        agent.save_weights('agents/agent{}_{}'.format(infilename,nepoch))
+        agent.save_weights('agents/agent{}_{}'.format(infilename,epoch))
