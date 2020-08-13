@@ -1,7 +1,7 @@
 import puyo
 import numpy as np
-import keras
-from keras import layers
+from tensorflow import keras
+from tensorflow.keras import layers
 import DQL_functions as qf
 import copy
 import pandas as pd
