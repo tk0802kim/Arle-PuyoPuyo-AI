@@ -17,14 +17,14 @@ blank_memeory = True #decides whether memory lane should be filled with blanks
 #create game and agent
 game = puyo.Puyo()
 ##load previous agent
-infilename = '_2'
+infilename = ''
 
 
 
 
 agent = keras.Sequential(
     [
-        #keras.Input(shape=(462,)),
+        keras.Input(shape=(462)),
         layers.Dense(100, activation="relu", name="layer1"),
         layers.Dense(100, activation="relu", name="layer2"),
         layers.Dense(22, name="output"),
