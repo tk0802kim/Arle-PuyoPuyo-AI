@@ -14,32 +14,43 @@ gamma = 0.95 #future reward discount
 batch_size = 50 #minibatch size for training
 blank_memeory = True #decides whether memory lane should be filled with blanks
 
+game_rows = 4 # number of rows in the game space
+game_col = 4 # number of columns in the game space
+game_n_color = 2 #number of puyo colors
+game_nblock = 1 #number of puto per block
+hide_top_row = False #whether to hide the very top row (game_rows+1th row) from the agent
+
 #create game and agent
-game = puyo.Puyo()
+game = puyo.Puyo(game_rows-(not hide_top_row),game_col,game_n_color,game_nblock)
 ##load previous agent
-infilename = ''
+infilename = '1'
 
+input_size = game_n_color*2+(game_n_color+1)*(game_rows-hide_top_row)*game_col
 
-
+"""for 1 block only"""
+if game_nblock ==1:
+    output_size = game_col
+else:
+    raise('fix output size')
 
 agent = keras.Sequential(
     [
-        keras.Input(shape=(462)),
-        layers.Dense(100, activation="relu", name="layer1"),
-        layers.Dense(100, activation="relu", name="layer2"),
-        layers.Dense(22, name="output"),
+        keras.Input(shape=(input_size)),
+        layers.Dense(input_size//1, activation="relu", name="layer1"),
+        layers.Dense(input_size//2, activation="relu", name="layer2"),
+        layers.Dense(output_size, name="output"),
     ]
 )
 agent.compile(loss='mean_squared_error', optimizer='adam')
 
 if infilename !='':
     if platform.system() == 'Windows':
-        agent.load_weights('agents\\agent{}'.format(infilename))
+        agent = keras.models.load_model('agents\\agent{}'.format(epoch))
     elif platform.system() == 'Linux':
         agent.load_weights('agents/agent{}'.format(infilename))
 
 #run random choice to create memory
-N = 100 #total number of games
+N = 100 # 100 total number of games
 movemax = 100; #maximum number of moves
 nepoch = 30 #number of epochs
 
@@ -56,7 +67,14 @@ totalmovelist = []
 
 
 print('Start training')
-moveref = np.delete(np.arange(24),[1,23])
+
+"""for 1 block only"""
+if game_nblock ==1:
+    moveref = np.arange(game_col)
+else:
+    raise('fix moveref')
+    
+    
 movelog = np.zeros((nepoch,len(memory_lane)),dtype=np.int)
 
 for epoch in range(nepoch):
@@ -73,20 +91,23 @@ for epoch in range(nepoch):
         game.chain()
         memory_lane[i].action = game.lastaction
         
+        #if game over, reward = -10000
+        if game.state[-1,game_col//2]!=0:
+            memory_lane[i].reward = -10
+            game.newgame()
+        
+        
         #if the last move was valid, reward is score. If not, -100
-        if game.valid:
+        elif game.valid:
             memory_lane[i].reward = qf.rewardmap(game.score)
             memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
         else:
-            # memory_lane[i].reward = -5000
-            game.state[11,2] = 1;
+            memory_lane[i].reward = -10
+            # game.state[11,2] = 1;
             memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
             # game.newgame()
 
-        #if game over, reward = -10000
-        if game.state[11,2]!=0:
-            memory_lane[i].reward = -5000
-            game.newgame()
+
     
     
 
@@ -99,48 +120,52 @@ for epoch in range(nepoch):
         
         #with chance of eps, take random action
         if np.random.rand(1)<eps:
-            game.place()             
+            game.place()
+            game.chain()             
         else:
             #create agent_viewstate from the snapshot in memory
-            viewstate = np.reshape(qf.agent_view(memory_lane[i].cur_gs),(1,462))
+            viewstate = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
             #move forward in Q
-            Qval = agent(viewstate,training=False)
+            Qval = agent.predict(np.reshape(viewstate,(1,-1)))[0]
+
             #choose the move with highest Q
-            Qlist=pd.DataFrame({'move':moveref,'Q':Qval[0]})
-            Qlist.sort_values(by='Q',ascending=False,inplace=True)
-            game.place(Qlist['move'].iloc[0])
+            move = moveref[np.argsort(Qval)[-1]]
+            game.place(move=move)
+            game.chain()
             
-        game.chain()
+ 
         memory_lane[i].action = copy.deepcopy(game.lastaction)
         movelog[epoch,i] = copy.deepcopy(game.lastaction)
         memory_lane[i].next_gs = copy.deepcopy(qf.gamestate(game))
 
-       #if the last move was valid, reward is score. If not, negative score
-        if game.valid:
+        #if the last move was valid, reward is score. If not, negative score
+        if game.state[-1,game_col//2]!=0:             #game over
+            memory_lane[i].reward = -10
+            game.newgame()      
+        elif game.valid:
             memory_lane[i].reward = qf.rewardmap(game.score)
         else:
-            memory_lane[i].reward = -3000    
-        #if game over, reward = negative score
-        if game.state[11,2]!=0:
-            memory_lane[i].reward = -1000
+            memory_lane[i].reward = -10
+            # game.state[11,2] = 1;
+
             
         #gradient descent   
         #sample random minibatch of snapshots in memory
         batch = np.random.choice(memory_lane,batch_size,replace=False)
         #calculate target for each
-        target = np.zeros(shape=(batch_size,22))
-        viewstate_cur_batch = np.zeros(shape=(batch_size,462)) #list of currernt states in agent viewstate form
-        viewstate_next_batch = np.zeros(shape=(batch_size,462))
-        
+
+        viewstate_cur_batch = np.zeros(shape=(batch_size,input_size)) #list of currernt states in agent viewstate form
+        viewstate_next_batch = np.zeros(shape=(batch_size,input_size))
+
         for ii in range(batch_size):
-            viewstate_cur_batch[ii] = np.reshape(qf.agent_view(batch[ii].cur_gs),(1,462))
-            viewstate_next_batch[ii] = np.reshape(qf.agent_view(batch[ii].next_gs),(1,462))
+            viewstate_cur_batch[ii] = np.reshape(qf.agent_view(batch[ii].cur_gs,game_n_color),(1,-1))
+            viewstate_next_batch[ii] = np.reshape(qf.agent_view(batch[ii].next_gs,game_n_color),(1,-1))
         target = agent.predict(viewstate_cur_batch)
         Qval_next = agent.predict(viewstate_next_batch)
         for ii in range(batch_size):
             actioni = np.where(moveref==batch[ii].action)[0][0] #index in output corresponding to action taken
             
-            if batch[ii].next_gs.state[11,2]!=0:
+            if batch[ii].next_gs.state[-1,game_col//2]!=0:
                 target[ii][actioni] = batch[ii].reward
             else:
                 #choose the move with highest Q
@@ -165,16 +190,13 @@ for epoch in range(nepoch):
         for iii in range(500):
             
             #calculate new action
-            viewstate = np.reshape(qf.agent_view(qf.gamestate(game)),(1,462))
+            viewstate = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
             #move forward in Q
-            Qval = agent(viewstate).numpy()
+            Qval = agent.predict(np.reshape(viewstate,(1,-1)))[0]
+
             #choose the move with highest Q
-            Qlist=pd.DataFrame({'move':moveref,'Q':Qval[0]})
-            Qlist.sort_values(by='Q',ascending=False,inplace=True)
-            bestmove = Qlist['move'].iloc[0]
-            
-            #place and run the game     
-            game.place(bestmove)
+            move = moveref[np.argsort(Qval)[-1]]
+            game.place(move=move)
             game.chain()      
             
             #if valid, +1 to movecount
@@ -182,7 +204,7 @@ for epoch in range(nepoch):
                 movecount+=1
             
             #check if gameover
-            if game.state[11,2]!=0:
+            if game.state[-1,game_col//2]!=0:
                 
                 break
         print(game.state)
@@ -193,9 +215,10 @@ for epoch in range(nepoch):
     print('Epoch {} best score: {}'.format(epoch, bestscore))
     print('Epoch {} max moves: {}'.format(epoch, totalmoves))
     
+
     scorelist.append(bestscore)
-    totalmovelist.append(totalmoves)
+    totalmovelist.append(totalmoves)q
     if platform.system() == 'Windows':
-        agent.save_weights('agents\\agent{}_{}'.format(infilename,epoch))
+        agent.save('agents\\agent{}'.format(epoch))
     elif platform.system() == 'Linux':       
         agent.save_weights('agents/agent{}_{}'.format(infilename,epoch))
