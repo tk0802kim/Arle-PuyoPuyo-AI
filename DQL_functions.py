@@ -1,5 +1,5 @@
 import numpy as np
-import math
+
 
 #game state includes: state, current block, next block.
 #this is used to reduce the memory needed for memorylane
@@ -17,18 +17,20 @@ class gamestate:
 #indexs from topmost row with a puyo 
 def agent_view(gamestate, game_n_color, hide_top_row=False):
     
+    mirrored = 0
+    
     if gamestate.current_block.size>1:
         raise Exception('Haven\'t coded for nblock != 1 yet!' )
     
-    nrow = gamestate.state.shape[0]-hide_top_row
+    nrow = gamestate.state.shape[0]-hide_top_row #dont consider last row if hidden
     ncol = gamestate.state.shape[1]
     
     #get flipstate(viewstate flipped(so the top comes first in index), topstate(first nonzero row) and top_i(index of the top row))
     top_i = 0
-    for i in range(nrow-1,-1,-1): #omit 13th row because thats invisible
+    for i in reversed(range(nrow)): 
             if np.any(gamestate.state[i,:]):
-                flipstate = np.flip(gamestate.state[0:i+1,:],0).flatten()
-                topstate = gamestate.state[i,:]
+                # flipstate = np.flip(gamestate.state[0:i+1,:],0).flatten()
+                # topstate = gamestate.state[i,:]
                 top_i = i
                 break
     
@@ -108,12 +110,9 @@ def agent_view(gamestate, game_n_color, hide_top_row=False):
                 break
             elif color_sum_recolored[o_l-1] < color_sum_recolored[o_r-1]:
                 recolored = np.flip(recolored, axis=1)
+                mirrored = 1
         if done==1:
             break
-
-   
-   
-    #%%
     
     """this is coded for only 1 block stuff"""
     # n_orientation = ncol
@@ -121,33 +120,32 @@ def agent_view(gamestate, game_n_color, hide_top_row=False):
     
     
     """following can be universal"""
-    viewstate = np.zeros(n_blocks*2+(game_n_color+1)*nrow*ncol,dtype=np.int) #this assumes no garbage puyo's with game_n_color+1
+    viewstate = np.zeros(shape=(1,n_blocks*2+(game_n_color+1)*nrow*ncol),dtype=np.int) #this assumes no garbage puyo's with game_n_color+1
     
     cur_block_i = block_ind(rc_cur)
     next_block_i = block_ind(rc_next)
     
-    viewstate[cur_block_i-1] = 1
-    viewstate[next_block_i-1+n_blocks] = 1
+    viewstate[0,cur_block_i-1] = 1
+    viewstate[0,next_block_i-1+n_blocks] = 1
     
     for ii in range(game_n_color+1):
-        counter=0
-        for i in range(top_i-1,-1,-1): #omit 13th row because thats invisible
 
-            topstate = gamestate.state[i,:];
+        for counter, i in enumerate(reversed(range(top_i+1))):
+
+            topstate = recolored[i,:];
             
-            if not any(topstate):
+            if (not any(topstate)) and (i>0):
                 raise('issue with viewstate')
                   
             # for slot in topstate:
             start = n_blocks*2+ii*nrow*ncol+ncol*counter
             end = n_blocks*2+ii*nrow*ncol+ncol*(counter+1)
             try:
-                viewstate[start:end] = (topstate==ii)*1
+                viewstate[0,start:end] = (topstate==ii)*1
             except:
                 print('meh')   
-
-            counter+=1                           
-    return viewstate
+                         
+    return viewstate,mirrored
     
 #find block index that correstponds to the given block
 def block_ind(block):
@@ -189,3 +187,13 @@ def pair_ind(nrow): #gives back indexes of the middle pieces of a row, and movin
          raise Exception('Issue in DQL_functions/pair_ind' )   
 
     return ind_list
+
+def best_move(moveref,Qval,mirrored):
+    n = len(moveref)
+    Q_i = np.argsort(Qval)[-1]
+    
+    if mirrored == 0:
+        return Q_i
+    else:
+        return np.flip([*range(n)])[Q_i]
+    

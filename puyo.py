@@ -37,6 +37,8 @@ class Puyo:
         self.lastaction = -1        # last move taken. -1 if this is the first move in game
         self.valid = -1
         self.game_over=0
+
+        
     
     #places puyo, then updates current_block and next_block    
     def place(self,move=None):

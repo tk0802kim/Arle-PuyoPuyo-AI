@@ -23,7 +23,7 @@ hide_top_row = False #whether to hide the very top row (game_rows+1th row) from 
 #create game and agent
 game = puyo.Puyo(game_rows-(not hide_top_row),game_col,game_n_color,game_nblock)
 ##load previous agent
-infilename = '1'
+infilename = ''
 
 input_size = game_n_color*2+(game_n_color+1)*(game_rows-hide_top_row)*game_col
 
@@ -45,12 +45,12 @@ agent.compile(loss='mean_squared_error', optimizer='adam')
 
 if infilename !='':
     if platform.system() == 'Windows':
-        agent = keras.models.load_model('agents\\agent{}'.format(epoch))
+        agent = keras.models.load_model('agents\\agent{}'.format(infilename))
     elif platform.system() == 'Linux':
-        agent.load_weights('agents/agent{}'.format(infilename))
+        agent = keras.models.load_model('../working/agents/agent{}'.format(infilename))
 
 #run random choice to create memory
-N = 100 # 100 total number of games
+N = 10 # 100 total number of games
 movemax = 100; #maximum number of moves
 nepoch = 30 #number of epochs
 
@@ -124,12 +124,14 @@ for epoch in range(nepoch):
             game.chain()             
         else:
             #create agent_viewstate from the snapshot in memory
-            viewstate = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
+            viewstate,mirrored = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
             #move forward in Q
-            Qval = agent.predict(np.reshape(viewstate,(1,-1)))[0]
+            Qval = agent.predict(viewstate)[0]
 
             #choose the move with highest Q
             move = moveref[np.argsort(Qval)[-1]]
+            if mirrored:
+                move = game_col-1-move
             game.place(move=move)
             game.chain()
             
@@ -156,10 +158,13 @@ for epoch in range(nepoch):
 
         viewstate_cur_batch = np.zeros(shape=(batch_size,input_size)) #list of currernt states in agent viewstate form
         viewstate_next_batch = np.zeros(shape=(batch_size,input_size))
+        
+        # mirrored_cur_batch == np.zeros(batch_size)
+        # mirrored_next_batch == np.zeros(batch_size)
 
         for ii in range(batch_size):
-            viewstate_cur_batch[ii] = np.reshape(qf.agent_view(batch[ii].cur_gs,game_n_color),(1,-1))
-            viewstate_next_batch[ii] = np.reshape(qf.agent_view(batch[ii].next_gs,game_n_color),(1,-1))
+            viewstate_cur_batch[ii],_ = qf.agent_view(batch[ii].cur_gs,game_n_color)
+            viewstate_next_batch[ii],_ = qf.agent_view(batch[ii].next_gs,game_n_color)
         target = agent.predict(viewstate_cur_batch)
         Qval_next = agent.predict(viewstate_next_batch)
         for ii in range(batch_size):
@@ -190,14 +195,16 @@ for epoch in range(nepoch):
         for iii in range(500):
             
             #calculate new action
-            viewstate = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
+            viewstate, mirrored = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
             #move forward in Q
-            Qval = agent.predict(np.reshape(viewstate,(1,-1)))[0]
+            Qval = agent.predict(viewstate)[0]
 
             #choose the move with highest Q
             move = moveref[np.argsort(Qval)[-1]]
+            if mirrored:
+                move = game_col-1-move
             game.place(move=move)
-            game.chain()      
+            game.chain()   
             
             #if valid, +1 to movecount
             if game.valid:
@@ -217,8 +224,8 @@ for epoch in range(nepoch):
     
 
     scorelist.append(bestscore)
-    totalmovelist.append(totalmoves)q
+    totalmovelist.append(totalmoves)
     if platform.system() == 'Windows':
         agent.save('agents\\agent{}'.format(epoch))
     elif platform.system() == 'Linux':       
-        agent.save_weights('agents/agent{}_{}'.format(infilename,epoch))
+        agent.save('../working/agents/agent{}'.format(epoch))
