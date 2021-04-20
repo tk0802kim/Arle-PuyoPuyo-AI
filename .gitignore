@@ -1,0 +1,6 @@
+
+.pylint.d/
+agents/
+__pycache__/
+.spyproject/
+test.py
