@@ -42,9 +42,9 @@ else:
 input_gamestate = keras.Input(shape=(game_n_color,game_rows,game_col))
 input_blocks = keras.Input(shape=(game_n_color*2))
 
-if tf.test.is_built_with_cuda():
+if tf.config.list_physical_devices('GPU'):
     conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same',data_format='channels_first')(input_gamestate)
-elif not tf.test.is_built_with_cuda():
+elif not tf.config.list_physical_devices('GPU'):
     input_gamestate_T = tf.transpose(input_gamestate, [0, 2, 3, 1])
     conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same')(input_gamestate_T)
 else:
@@ -226,10 +226,10 @@ for epoch in range(nepoch):
     scorelist.append(bestscore)
     totalmovelist.append(totalmoves)
     if platform.system() == 'Windows':
-        agent.save('agents\\agent{}'.format(epoch))
+        agent.save('conv_agents\\agent{}'.format(epoch))
         with open("movelog.dill", "wb") as f:
             dill.dump(movelog, f)
     elif platform.system() == 'Linux':       
-        agent.save('../working/agents/agent{}'.format(epoch))
+        agent.save('../working/conv_agents/agent{}'.format(epoch))
         with open("movelog.dill", "wb") as f:
             dill.dump(movelog, f)
