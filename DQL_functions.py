@@ -120,11 +120,13 @@ def agent_view(gamestate, game_n_color, hide_top_row=False):
     
     
     """following can be universal"""
-    viewstate = np.zeros(shape=(1,n_blocks*2+(game_n_color+1)*nrow*ncol),dtype=np.int) #this assumes no garbage puyo's with game_n_color+1
-    
+    # +ncol at the end to signify height of each block
+    viewstate = np.zeros(shape=(1,n_blocks*2+(game_n_color+1)*nrow*ncol+ncol),dtype=np.int) #this assumes no garbage puyo's with game_n_color+1
+        
     cur_block_i = block_ind(rc_cur)
     next_block_i = block_ind(rc_next)
-    
+    for i_col in ncol:
+        viewstate[0,-4+i_col] = np.mean(recolored[:,i_col]!=0)
     viewstate[0,cur_block_i-1] = 1
     viewstate[0,next_block_i-1+n_blocks] = 1
     
@@ -146,7 +148,93 @@ def agent_view(gamestate, game_n_color, hide_top_row=False):
                 print('meh')   
                          
     return viewstate,mirrored
+  
+#%% convolutional view
+def agent_view_conv(gamestate, game_n_color, hide_top_row=False):
+        
+    if gamestate.current_block.size>1:
+        raise Exception('Haven\'t coded for nblock != 1 yet!' )
     
+    nrow = gamestate.state.shape[0]-hide_top_row #dont consider last row if hidden
+    ncol = gamestate.state.shape[1]
+    
+    #get flipstate(viewstate flipped(so the top comes first in index), topstate(first nonzero row) and top_i(index of the top row))
+    top_i = 0
+    for i in reversed(range(nrow)): 
+            if np.any(gamestate.state[i,:]):
+                # flipstate = np.flip(gamestate.state[0:i+1,:],0).flatten()
+                # topstate = gamestate.state[i,:]
+                top_i = i
+                break
+    """
+    recolor
+        1 is the most numerous, 2 is next.....
+    rules:
+        1. Most puyo color in viewspace
+        2. color of current puyo (multiply 0.5 to count so you dont flip the previous results )
+        3. color of next puyo (multiply 0.25 to count)
+        4. more in first row, second row, third row....
+        5. check middle in first row, next ones...second row middle, next.....
+       
+    This fails only if:
+        1. same number of placed puyo
+        2. not favored by cur or next blocks
+        3. symmetric about middle
+    """
+    viewspace = gamestate.state[0:nrow,:]
+    recolored = np.zeros((nrow,ncol),dtype=int)
+    rc_cur = np.zeros(gamestate.current_block.shape,dtype=int)
+    rc_next = np.zeros(gamestate.next_block.shape,dtype=int)
+    
+    tiebreaker_level = 1
+    p_i=pair_ind(ncol) #gives back indexes of the middle pieces of a row, and moving outward
+    
+    color_sum = np.array([np.count_nonzero(viewspace==c) for c in range(1,game_n_color+1)],dtype=float) #rule 1
+    if len(np.unique(color_sum)) != game_n_color:
+        cur_sum = np.array([np.count_nonzero(gamestate.current_block==c) for c in range(1,game_n_color+1)],dtype=float) #rule 2
+        color_sum += (1/2**tiebreaker_level)*cur_sum
+        
+        if len(np.unique(color_sum)) != game_n_color:
+            tiebreaker_level += 1
+            next_sum = np.array([np.count_nonzero(gamestate.current_block==c) for c in range(1,game_n_color+1)],dtype=float) #rule 3
+            color_sum += (1/2**tiebreaker_level)*next_sum
+            
+            if len(np.unique(color_sum)) != game_n_color:                
+                for i in range(top_i,-1,-1):
+                    tiebreaker_level += 1
+                    color_sum += (1/2**tiebreaker_level)*np.array([np.count_nonzero(viewspace[i,:]==c) for c in range(1,game_n_color+1)],dtype=float) #rule 4
+
+                if len(np.unique(color_sum)) != game_n_color:                    
+                    for i in range(top_i,-1,-1):
+                        for inds in p_i:
+                            tiebreaker_level += 1
+                            color_sum += (1/2**tiebreaker_level)*np.array([np.count_nonzero(viewspace[i,inds]==c) for c in range(1,game_n_color+1)],dtype=float) #rule 5
+    
+    recolor_ind = np.flip(np.argsort(color_sum))+1
+    #rc is the original color, c is the new color. So the state is going form rc->c
+    for rc, c in enumerate(recolor_ind):
+        recolored += (rc+1)*(viewspace==c)           #recolored gamespace
+        rc_cur += (rc+1)*(gamestate.current_block==c) #recolored cur block
+        rc_next += (rc+1)*(gamestate.next_block==c)   #recolored next block
+        
+    viewstate = np.zeros(shape=(1,game_n_color,nrow,ncol),dtype=int)
+    for i in range(game_n_color):
+        viewstate[0,i] = (recolored==(i+1))
+        
+    # viewstate = np.zeros(shape=(game_n_color,nrow,ncol),dtype=int)
+    # for i in range(game_n_color):
+    #     viewstate.append(recolored==(i+1))
+    
+    """this is coded for only 1 block stuff"""
+    # n_orientation = ncol
+    n_blocks = game_n_color #number of different blocks that can be given
+    viewblocks = np.zeros(shape=(1,n_blocks*2),dtype=int)
+    viewblocks[0,rc_cur-1] = 1
+    viewblocks[0,n_blocks+rc_next-1] = 1
+    
+    return viewstate, viewblocks
+
+  
 #find block index that correstponds to the given block
 def block_ind(block):
     return block

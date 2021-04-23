@@ -1,6 +1,7 @@
 import puyo
 import numpy as np
 from tensorflow import keras
+import tensorflow as tf
 from tensorflow.keras import layers
 import DQL_functions as qf
 import copy
@@ -8,6 +9,8 @@ import pandas as pd
 import platform
 from tqdm import tqdm
 import dill
+import time
+import datetime
 
 eta = 0.01 #learning rate
 eps = 0.30 # random action rate
@@ -26,31 +29,42 @@ game = puyo.Puyo(game_rows-(not hide_top_row),game_col,game_n_color,game_nblock)
 ##load previous agent
 infilename = ''
 
-input_size = game_n_color*2+(game_n_color)*(game_rows-hide_top_row)*game_col#+game_col
-
-"""for 1 block only"""
 
 """for 1 block only"""
 if game_nblock ==1:
     output_size = game_col
+    moveref = np.arange(game_col)
 else:
-    raise('fix output size')
+    raise('fix output size and/or moveref')
 
-agent = keras.Sequential(
-    [
-        keras.Input(shape=(input_size)),
-        layers.Dense(50, activation="relu", name="layer1"),
-        #layers.Dense(50, activation="relu", name="layer2"),
-        layers.Dense(output_size, name="output"),
-    ]
-)
+"""specify model"""
+
+input_gamestate = keras.Input(shape=(game_n_color,game_rows,game_col))
+input_blocks = keras.Input(shape=(game_n_color*2))
+
+if tf.test.is_built_with_cuda():
+    conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same',data_format='channels_first')(input_gamestate)
+elif not tf.test.is_built_with_cuda():
+    input_gamestate_T = tf.transpose(input_gamestate, [0, 2, 3, 1])
+    conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same')(input_gamestate_T)
+else:
+    raise('issue with convolution setup')
+    
+flatten = layers.Flatten()(conv1)
+conc = layers.concatenate([flatten, input_blocks])
+middle_layer = layers.Dense(64,activation="relu")(conc)
+output_layer = layers.Dense(output_size)(middle_layer)
+
+agent = keras.Model(inputs=[input_gamestate, input_blocks], outputs=output_layer)
 agent.compile(loss='mean_squared_error', optimizer='adam')
+
+
 
 if infilename !='':
     if platform.system() == 'Windows':
-        agent = keras.models.load_model('agents\\agent{}'.format(infilename))
+        agent = keras.models.load_model('conv_agents\\agent{}'.format(infilename))
     elif platform.system() == 'Linux':
-        agent = keras.models.load_model('../working/agents/agent{}'.format(infilename))
+        agent = keras.models.load_model('../working/conv_agents/agent{}'.format(infilename))
 
 #run random choice to create memory
 N = 100 # 100 total number of games
@@ -71,11 +85,7 @@ totalmovelist = []
 
 print('Start training')
 
-"""for 1 block only"""
-if game_nblock ==1:
-    moveref = np.arange(game_col)
-else:
-    raise('fix moveref')
+
     
     
 movelog = np.zeros((nepoch,len(memory_lane)),dtype=np.int)
@@ -83,7 +93,7 @@ movelog = np.zeros((nepoch,len(memory_lane)),dtype=np.int)
 
     
 for epoch in range(nepoch):
-    
+    t0 = time.time()
     
     #populate with random move games
     game.newgame()
@@ -120,14 +130,12 @@ for epoch in range(nepoch):
              
         else:
             #create agent_viewstate from the snapshot in memory
-            viewstate,mirrored = qf.agent_view(memory_lane[i].cur_gs,game_n_color)
+            viewstate,viewblock = qf.agent_view_conv(memory_lane[i].cur_gs,game_n_color)
             #move forward in Q
-            Qval = agent.predict(viewstate)[0]
+            Qval = agent.predict([viewstate,viewblock])[0]
 
             #choose the move with highest Q
             move = moveref[np.argsort(Qval)[-1]]
-            if mirrored:
-                move = game_col-1-move
             game.place(move=move)
             
         game.chain()   
@@ -149,19 +157,18 @@ for epoch in range(nepoch):
         #gradient descent   
         #sample random minibatch of snapshots in memory
         batch = np.random.choice(memory_lane,batch_size,replace=False)
+               
         #calculate target for each
-
-        viewstate_cur_batch = np.zeros(shape=(batch_size,input_size)) #list of currernt states in agent viewstate form
-        viewstate_next_batch = np.zeros(shape=(batch_size,input_size))
+        viewstate_cur_batch = np.zeros(shape=(batch_size,game_n_color,game_rows,game_col)) #list of currernt states in agent viewstate form
+        viewstate_next_batch = np.zeros(shape=(batch_size,game_n_color,game_rows,game_col))
+        viewblock_cur_batch = np.zeros(shape=(batch_size,game_n_color*2)) #list of currernt states in agent viewstate form
+        viewblock_next_batch = np.zeros(shape=(batch_size,game_n_color*2))
         
-        # mirrored_cur_batch == np.zeros(batch_size)
-        # mirrored_next_batch == np.zeros(batch_size)
-
         for ii in range(batch_size):
-            viewstate_cur_batch[ii],_ = qf.agent_view(batch[ii].cur_gs,game_n_color)
-            viewstate_next_batch[ii],_ = qf.agent_view(batch[ii].next_gs,game_n_color)
-        target = agent.predict(viewstate_cur_batch)
-        Qval_next = agent.predict(viewstate_next_batch)
+            viewstate_cur_batch[ii],viewblock_cur_batch[ii] = qf.agent_view_conv(batch[ii].cur_gs,game_n_color)
+            viewstate_next_batch[ii],viewblock_next_batch[ii] = qf.agent_view_conv(batch[ii].next_gs,game_n_color)
+        target = agent.predict([viewstate_cur_batch,viewblock_cur_batch])
+        Qval_next = agent.predict([viewstate_next_batch,viewblock_next_batch])
         for ii in range(batch_size):
             actioni = np.where(moveref==batch[ii].action)[0][0] #index in output corresponding to action taken
             
@@ -173,10 +180,12 @@ for epoch in range(nepoch):
                 target[ii][actioni] = batch[ii].reward+gamma*max(Qval_next[ii])
          
         #feed it for gradient descent   
-        loss = agent.train_on_batch(viewstate_cur_batch, target)
+        loss = agent.train_on_batch([viewstate_cur_batch,viewblock_cur_batch], target)
 
         if (100*i/len(memory_lane))%1==0:
+            t1 = time.time()
             print(' ')
+            print(datetime.timedelta(seconds=round(t1-t0)))
             print('Epoch {}, {}% though memory lane'.format(epoch,100*i/len(memory_lane)))
             print('Loss: {}'.format(loss))
          
@@ -188,16 +197,15 @@ for epoch in range(nepoch):
         game.newgame()
         for iii in range(500):
             
-            #calculate new action
-            viewstate, mirrored = qf.agent_view(game,game_n_color)
+            #create agent_viewstate from the snapshot in memory
+            viewstate,viewblock = qf.agent_view_conv(game,game_n_color)
             #move forward in Q
-            Qval = agent.predict(viewstate)[0]
+            Qval = agent.predict([viewstate,viewblock])[0]
 
             #choose the move with highest Q
             move = moveref[np.argsort(Qval)[-1]]
-            if mirrored:
-                move = game_col-1-move
             game.place(move=move)
+            
             game.chain()   
             
             #if valid, +1 to movecount
