@@ -1,4 +1,4 @@
-# PuyoPuyo
+# Arle
 PuyoPuyo AI using PuyoPuyo2 rules
 It obeys every rule in Puyo2 except two notable exceptions:
     1. Columns can't be blocked off. For example, if column 3 is filled to the top, the game won't let you place anything in columns>=4, but here it is allowed for simplicities sake.
