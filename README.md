@@ -20,6 +20,6 @@ In particular:
 
 
 
-PuyoPuyo gameplay:
+PuyoPuyo is a player vs player tetris-like game. When 4 or more blocks(Puyos) of the same color are connected, they explode, generating score and creating space for Puyos to drop down. Scores are then translated into garbage puyo's which are sent to the opponent's gamespace to obstruct. Here is a gameplay video:
 
 [![](http://img.youtube.com/vi/ZbWQ36NWSNQ/0.jpg)](http://www.youtube.com/watch?v=ZbWQ36NWSNQ "")
