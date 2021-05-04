@@ -43,16 +43,16 @@ input_gamestate = keras.Input(shape=(game_n_color,game_rows,game_col))
 input_blocks = keras.Input(shape=(game_n_color*2))
 
 if tf.config.list_physical_devices('GPU'):
-    conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same',data_format='channels_first')(input_gamestate)
+    conv1 =  layers.Conv2D(32, kernel_size=(3,3),activation='relu',padding='same',data_format='channels_first')(input_gamestate)
 elif not tf.config.list_physical_devices('GPU'):
     input_gamestate_T = tf.transpose(input_gamestate, [0, 2, 3, 1])
-    conv1 =  layers.Conv2D(16, kernel_size=(3,3),activation='relu',padding='same')(input_gamestate_T)
+    conv1 =  layers.Conv2D(32, kernel_size=(3,3),activation='relu',padding='same')(input_gamestate_T)
 else:
     raise('issue with convolution setup')
     
 flatten = layers.Flatten()(conv1)
 conc = layers.concatenate([flatten, input_blocks])
-middle_layer = layers.Dense(64,activation="relu")(conc)
+middle_layer = layers.Dense(256,activation="relu")(conc)
 output_layer = layers.Dense(output_size)(middle_layer)
 
 agent = keras.Model(inputs=[input_gamestate, input_blocks], outputs=output_layer)
@@ -64,7 +64,7 @@ if infilename !='':
     if platform.system() == 'Windows':
         agent = keras.models.load_model('conv_agents\\agent{}'.format(infilename))
     elif platform.system() == 'Linux':
-        agent = keras.models.load_model('../working/conv_agents/agent{}'.format(infilename))
+        agent = keras.models.load_model('../working/conv_agents_32_256/agent{}'.format(infilename))
 
 #run random choice to create memory
 N = 100 # 100 total number of games
