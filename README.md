@@ -15,10 +15,6 @@ In particular:
     
 DQL.py contains classes and functions to be used in deep Q learning.(https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf)
 
-In particular:
-    memory class: contains state, action taken, reward observed, and the resulting state. This will be collected in an array called memeory_lane in the main function
-
-
 
 PuyoPuyo is a player vs player tetris-like game. When 4 or more blocks(Puyos) of the same color are connected, they explode, generating score and creating space for Puyos to drop down. Scores are then translated into garbage puyo's which are sent to the opponent's gamespace to obstruct. Here is a gameplay video:
 
