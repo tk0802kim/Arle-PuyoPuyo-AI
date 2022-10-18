@@ -4,3 +4,5 @@ agents/
 __pycache__/
 .spyproject/
 test.py
+old_scripts/
+scrap.py

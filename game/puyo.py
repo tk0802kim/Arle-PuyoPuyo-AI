@@ -4,54 +4,59 @@ import copy
 
 
 class Puyo:
-    def __init__(self, game_rows = 12, game_col = 6, game_n_color = 5, game_nblock = 2):
+    def __init__(self, n_row = 12, n_col = 6, n_color = 5, n_block = 2):
                     
-        # game_rows = number of rows in the game space
-        # game_col = number of columns in the game space
-        # game_n_color = number of puyo colors
-        # game_nblock = number of puto per block
+        # n_row = number of rows in the game space
+        # n_col = number of columns in the game space
+        # n_color = number of puyo colors
+        # n_block = number of puyo per block
 
-        #0 means empty, 1~game_n_color is colored puyo(red, green, blue,yellow,purple), game_n_color+1 is garbage
+        #0 means empty, 1~n_color is colored puyo(red, green, blue,yellow,purple), n_color+1 is garbage
         #bottommoost row is index 0
-        #state will be mapeed to agent_state to be sent to the agent
-        #attack is the number of garbage puyo that will be dropped after the next step. negative means garbage puyos on me next turn.
-        #tp is the target point(points needed per garbage puyo)
-        #nl is the nuisance leftover
+        #state will be maped to agent_state to be sent to the agent
         #time is the number of links ran, to show how long the game has been played
         #gb is the group bonus to be used in score calculation
         
-        self.game_rows = game_rows
-        self.game_col = game_col
-        self.game_n_color = game_n_color
-        self.game_nblock = game_nblock
+        self.n_row = n_row
+        self.n_col = n_col
+        self.n_color = n_color
+        self.n_block = n_block
         
-        self.state = np.zeros((self.game_rows+1,self.game_col),dtype=np.int)
-        self.current_block = np.random.randint(1,self.game_n_color+1,size=self.game_nblock)
-        self.next_block = np.random.randint(1,self.game_n_color+1,size=self.game_nblock)
+        self.state = np.zeros((self.n_row,self.n_col),dtype=np.int)
+        self.current_block = np.random.randint(1,self.n_color+1,size=self.n_block)
+        self.next_block = np.random.randint(1,self.n_color+1,size=self.n_block)
         self.score = 0
-        self.attack = 0
-        self.tp = 70
-        self.nl = 0
         self.time = 0
+        
         self.totalscore = 0
         self.lastaction = -1        # last move taken. -1 if this is the first move in game
         self.valid = -1
         self.game_over=0
+        
+        #multiplayer quantities
+        #attack is the number of garbage puyo that will be dropped after the next step. negative means garbage puyos on me next turn.
+        #tp is the target point(points needed per garbage puyo)
+        #nl is the nuisance leftover
+        self.attack = 0
+        self.tp = 70
+        self.nl = 0
+        
+
 
         
     
     #places puyo, then updates current_block and next_block    
     def place(self,move=None):
         
-        if self.game_nblock == 1:
+        if self.n_block == 1:
             
             if move == None:
-                move = np.random.randint(self.game_col)
+                move = np.random.randint(self.n_col)
             
             self.lastaction = move
             
-            if self.state[self.game_rows,move] == 0:
-                self.state[self.game_rows,move] = self.current_block
+            if self.state[self.n_row-1,move] == 0:
+                self.state[self.n_row-1,move] = self.current_block
                 self.valid = 1
             else:
                 self.valid = 0
@@ -104,12 +109,12 @@ class Puyo:
             self.reset()
 
         
-    #drop pyyos down
+    #drop puyos down
     def drop(self):
-        for i in range(self.game_col):
+        for i in range(self.n_col):
             #delete all 0's, then add in the rest of zeros
             foo = np.ma.compressed(np.ma.masked_equal(self.state[:,i],0))
-            self.state[:,i] = np.append(foo,np.zeros(self.game_rows+1-len(foo),dtype=np.int))
+            self.state[:,i] = np.append(foo,np.zeros(self.n_row-len(foo),dtype=np.int))
             
     #runs the game for one step in the chain
     #drops all puyo, calculates one step in the puyo chain, deletes those puyos
@@ -121,17 +126,17 @@ class Puyo:
 
         #check for connected puyos
         #create labelstate(checked list, 0 means not checked),blowstate(blowup list, 1 means destroy), label, que, colorlist,glist
-        labelstate = np.zeros((self.game_rows+1,self.game_col),dtype=np.int)
-        blowstate = np.zeros((self.game_rows+1,self.game_col),dtype=np.int)
+        labelstate = np.zeros((self.n_row,self.n_col),dtype=np.int)
+        blowstate = np.zeros((self.n_row,self.n_col),dtype=np.int)
         label = 1
         que=[]
-        colorlist=np.array([False]*self.game_n_color)
+        colorlist=np.array([False]*self.n_color)
         glist=[]#contains size of blown up clusters
         #loop through all points
-        for i in range(self.game_rows+1):
-            for ii in range(self.game_col):
+        for i in range(self.n_row):
+            for ii in range(self.n_col):
                 #check that point is not labeled, and is colorpuyo
-                if labelstate[i,ii] ==0 and self.state[i,ii]>0 and self.state[i,ii]<self.game_n_color+1:
+                if labelstate[i,ii] ==0 and self.state[i,ii]>0 and self.state[i,ii]<self.n_color+1:
                     #populate que with the starting point
                     que.append([i,ii])
                     #check off point from labelstate
@@ -139,7 +144,7 @@ class Puyo:
                     #color of the current label
                     color = self.state[i,ii]
                     #garbage puyos connected to the current label puyos
-                    garbagestate = np.zeros((self.game_rows+1,self.game_col),dtype=np.int)
+                    garbagestate = np.zeros((self.n_row,self.n_col),dtype=np.int)
                     #repeat until que is empty
                     while que!=[]:
                         #get neighbor list
@@ -152,7 +157,7 @@ class Puyo:
                                 # and label those neighbors in labelstate
                                 labelstate[n1,n2] = label
                             #if it is garbage puyo, add it to garbagestate
-                            elif self.state[n1,n2]==self.game_n_color+1:
+                            elif self.state[n1,n2]==self.n_color+1:
                                 garbagestate[n1,n2]=1
                         #remove the element from que
                         que.pop(0)
@@ -203,6 +208,8 @@ class Puyo:
             nc = math.floor(nnp) #number of garbage puyos sent
             self.nl = nnp-nc
             self.attack += nc
+        else:
+            self.score = -10
         #increment time even if move wasnt valid
         self.time +=1
           
@@ -214,12 +221,12 @@ class Puyo:
         self.score=0
         self.attack=0
         self.current_block = copy.deepcopy(self.next_block)
-        self.next_block=np.random.randint(1,self.game_n_color+1,size=self.game_nblock)
+        self.next_block=np.random.randint(1,self.n_color+1,size=self.n_block)
         
     def newgame(self):
-        self.state = np.zeros((self.game_rows+1,self.game_col),dtype=np.int)
-        self.current_block = np.random.randint(1,self.game_n_color+1,size=self.game_nblock)
-        self.next_block = np.random.randint(1,self.game_n_color+1,size=self.game_nblock)
+        self.state = np.zeros((self.n_row,self.n_col),dtype=np.int)
+        self.current_block = np.random.randint(1,self.n_color+1,size=self.n_block)
+        self.next_block = np.random.randint(1,self.n_color+1,size=self.n_block)
         self.score = 0
         self.attack = 0
         self.tp = 70
@@ -232,18 +239,30 @@ class Puyo:
 
     #function to return the list of neighbors
     def neighbor(self,loc):
-        nlist = np.array([[loc[0],loc[1]+1],[loc[0]+1,loc[1]],[loc[0]-1,loc[1]],[loc[0],loc[1]-1]])
-        delete_list=[]
-        if loc[0] == 0:
-            delete_list.append(2)
-        if loc[0] == self.game_rows:
-            delete_list.append(1)
-        if loc[1] == 0:
-            delete_list.append(3)
-        if loc[1] == self.game_col-1:
-            delete_list.append(0)
+        # nlist = np.array([[loc[0],loc[1]+1],[loc[0]+1,loc[1]],[loc[0]-1,loc[1]],[loc[0],loc[1]-1]])
+        # delete_list=[]
+        # if loc[0] == 0:
+        #     delete_list.append(2)
+        # if loc[0] == self.n_row-1:
+        #     delete_list.append(1)
+        # if loc[1] == 0:
+        #     delete_list.append(3)
+        # if loc[1] == self.n_col-1:
+        #     delete_list.append(0)
+        # return np.delete(nlist,delete_list,0)
+            
+        nlist = []
+        if loc[0] != 0:
+            nlist.append([loc[0]-1,loc[1]])
+        if loc[0] != self.n_row-1:
+            nlist.append([loc[0]+1,loc[1]])
+        if loc[1] != 0:
+            nlist.append([loc[0],loc[1]-1])
+        if loc[1] != self.n_col-1:
+            nlist.append([loc[0],loc[1]+1])
         
-        return np.delete(nlist,delete_list,0)
+        
+        return nlist
 
 
 #calculate score
